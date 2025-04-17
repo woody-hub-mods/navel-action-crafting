@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crafting Calculator</title>
+</head>
+<body>
+  <h1>Crafting Calculator</h1>
+
+  <label for="item">Select Item to Craft:</label>
+  <select id="item">
+    <option value="provisions">Provisions</option>
+    <option value="rum">Rum</option>
+    <option value="barrels">Barrels</option>
+    <option value="ironFittings">Iron Fittings</option>
+  </select>
+
+  <label for="quantity">Enter Quantity:</label>
+  <input type="number" id="quantity" min="1" value="1">
+
+  <button id="calculateButton">Calculate</button>
+
+  <h2>Calculation Results:</h2>
+  <div id="results"></div>
+
+  <script>
+    // JSON object containing raw materials and sub-components
+    const craftingData = {
+      rawMaterials: {
+        ironOre: { price: 5 },
+        oakLog: { price: 2 },
+        molasses: { price: 3 },
+        fishMeat: { price: 3 },
+        tobacco: { price: 3 }
+      },
+      subComponents: {
+        charcoal: { batchSize: 100, recipe: { oakLog: 40 } },
+        oakPlank: { batchSize: 100, recipe: { oakLog: 40 } },
+        ironFittings: { batchSize: 100, recipe: { ironOre: 20, charcoal: 20 } },
+        barrels: { batchSize: 50, recipe: { ironFittings: 20, oakPlank: 30 } },
+        rum: { batchSize: 50, recipe: { molasses: 50, barrels: 50 } },
+        provisions: {
+          batchSize: 50,
+          recipe: { fishMeat: 100, tobacco: 100, barrels: 100, rum: 100 }
+        }
+      }
+    };
+
+    // Function to calculate crafting requirements and costs
+    function calculateCrafting(item, quantity) {
+      const results = [];
+      const totalCost = { rawMaterials: {} };
+
+      function calculateComponent(component, qtyNeeded) {
+        const data = craftingData.subComponents[component];
+        if (!data) return;
+
+        const batchesNeeded = Math.ceil(qtyNeeded / data.batchSize);
+        for (const [key, value] of Object.entries(data.recipe)) {
+          const requiredQty = value * batchesNeeded;
+
+          if (craftingData.rawMaterials[key]) {
+            // Raw material processing
+            if (!totalCost.rawMaterials[key]) totalCost.rawMaterials[key] = 0;
+            totalCost.rawMaterials[key] += requiredQty * craftingData.rawMaterials[key].price;
+          } else {
+            // Sub-component processing
+            calculateComponent(key, requiredQty);
+          }
+
+          results.push(`${requiredQty} ${key} needed (${batchesNeeded} batches).`);
+        }
+      }
+
+      calculateComponent(item, quantity);
+
+      let costBreakdown = "";
+      for (const [key, value] of Object.entries(totalCost.rawMaterials)) {
+        costBreakdown += `${key}: $${value}<br>`;
+      }
+
+      return { requirements: results.join("<br>"), costs: costBreakdown };
+    }
+
+    // Event listener for button click
+    document.getElementById("calculateButton").addEventListener("click", () => {
+      const item = document.getElementById("item").value;
+      const quantity = parseInt(document.getElementById("quantity").value);
+
+      const { requirements, costs } = calculateCrafting(item, quantity);
+
+      document.getElementById("results").innerHTML = `<strong>Requirements:</strong><br>${requirements}<br><br><strong>Costs:</strong><br>${costs}`;
+    });
+  </script>
+</body>
+</html>
