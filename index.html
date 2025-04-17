@@ -103,36 +103,62 @@
         return num.toLocaleString();
       }
 
-      function calculateComponent(component, qtyNeeded) {
+      function calculateComponent(component, qtyNeeded, chainTracker = []) {
         const data = craftingData.subComponents[component];
         if (!data) return;
 
         const batchesNeeded = Math.ceil(qtyNeeded / data.batchSize);
-        productionChain.push(`Produce ${formatNumber(qtyNeeded)} ${component} (${batchesNeeded} batches):`);
+
+        // Track this production step
+        const productionStep = {
+          name: component,
+          qty: qtyNeeded,
+          batches: batchesNeeded,
+          ingredients: []
+        };
+
         for (const [key, value] of Object.entries(data.recipe)) {
           const requiredQty = value * batchesNeeded;
 
           if (craftingData.rawMaterials[key]) {
+            // Raw materials
             if (!rawMaterials[key]) rawMaterials[key] = 0;
             rawMaterials[key] += requiredQty;
             if (!totalCost.rawMaterials[key]) totalCost.rawMaterials[key] = 0;
             totalCost.rawMaterials[key] += requiredQty * craftingData.rawMaterials[key].price;
             grandTotal += requiredQty * craftingData.rawMaterials[key].price;
           } else {
-            calculateComponent(key, requiredQty);
+            // Sub-component
+            calculateComponent(key, requiredQty, chainTracker);
           }
 
-          productionChain.push(`- ${formatNumber(requiredQty)} ${key}`);
+          // Track ingredient
+          productionStep.ingredients.push({ name: key, qty: requiredQty });
         }
+
+        // Add this step to the chain tracker
+        chainTracker.push(productionStep);
       }
 
-      calculateComponent(item, quantity);
+      const chainTracker = [];
+      calculateComponent(item, quantity, chainTracker);
 
+      // Build raw materials output
       let rawMaterialsOutput = "<strong>Raw Materials Needed:</strong><br>";
       for (const [key, value] of Object.entries(rawMaterials)) {
         rawMaterialsOutput += `${key}: ${formatNumber(value)}<br>`;
       }
 
+      // Build production chain output in proper order
+      let productionChainOutput = "<strong>Production Chain:</strong><br>";
+      for (const step of chainTracker) {
+        productionChainOutput += `Produce ${formatNumber(step.qty)} ${step.name} (${step.batches} batches):<br>`;
+        for (const ingredient of step.ingredients) {
+          productionChainOutput += `- ${formatNumber(ingredient.qty)} ${ingredient.name}<br>`;
+        }
+      }
+
+      // Build cost breakdown
       let costBreakdown = "<strong>Cost Breakdown:</strong><br>";
       for (const [key, value] of Object.entries(totalCost.rawMaterials)) {
         costBreakdown += `${key}: $${formatNumber(value)}<br>`;
@@ -140,7 +166,7 @@
 
       return {
         rawMaterials: rawMaterialsOutput,
-        productionChain: productionChain.join("<br>"),
+        productionChain: productionChainOutput,
         costs: costBreakdown,
         totalCost: grandTotal
       };
@@ -154,7 +180,7 @@
 
       document.getElementById("results").innerHTML = `
         ${rawMaterials}<br><br>
-        <strong>Production Chain:</strong><br>${productionChain}<br><br>
+        ${productionChain}<br><br>
         ${costs}<br><br>
         <strong>Total Cost:</strong> $${totalCost.toLocaleString()}
       `;
@@ -162,3 +188,4 @@
   </script>
 </body>
 </html>
+
