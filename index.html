@@ -108,7 +108,7 @@
         if (!data) return;
 
         const batchesNeeded = Math.ceil(qtyNeeded / data.batchSize);
-        productionChain.push(`To produce ${formatNumber(qtyNeeded)} ${component} (${batchesNeeded} batches):`);
+        productionChain.push(`Produce ${formatNumber(qtyNeeded)} ${component} (${batchesNeeded} batches):`);
         for (const [key, value] of Object.entries(data.recipe)) {
           const requiredQty = value * batchesNeeded;
 
