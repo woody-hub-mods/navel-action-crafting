@@ -94,19 +94,27 @@
     };
 
     function calculateCrafting(item, quantity) {
-      const results = [];
+      const rawMaterials = {};
+      const productionChain = [];
       const totalCost = { rawMaterials: {} };
       let grandTotal = 0;
+
+      function formatNumber(num) {
+        return num.toLocaleString();
+      }
 
       function calculateComponent(component, qtyNeeded) {
         const data = craftingData.subComponents[component];
         if (!data) return;
 
         const batchesNeeded = Math.ceil(qtyNeeded / data.batchSize);
+        productionChain.push(`To produce ${formatNumber(qtyNeeded)} ${component} (${batchesNeeded} batches):`);
         for (const [key, value] of Object.entries(data.recipe)) {
           const requiredQty = value * batchesNeeded;
 
           if (craftingData.rawMaterials[key]) {
+            if (!rawMaterials[key]) rawMaterials[key] = 0;
+            rawMaterials[key] += requiredQty;
             if (!totalCost.rawMaterials[key]) totalCost.rawMaterials[key] = 0;
             totalCost.rawMaterials[key] += requiredQty * craftingData.rawMaterials[key].price;
             grandTotal += requiredQty * craftingData.rawMaterials[key].price;
@@ -114,19 +122,25 @@
             calculateComponent(key, requiredQty);
           }
 
-          results.push(`${requiredQty} ${key} needed (${batchesNeeded} batches).`);
+          productionChain.push(`- ${formatNumber(requiredQty)} ${key}`);
         }
       }
 
       calculateComponent(item, quantity);
 
-      let costBreakdown = "";
+      let rawMaterialsOutput = "<strong>Raw Materials Needed:</strong><br>";
+      for (const [key, value] of Object.entries(rawMaterials)) {
+        rawMaterialsOutput += `${key}: ${formatNumber(value)}<br>`;
+      }
+
+      let costBreakdown = "<strong>Cost Breakdown:</strong><br>";
       for (const [key, value] of Object.entries(totalCost.rawMaterials)) {
-        costBreakdown += `${key}: $${value}<br>`;
+        costBreakdown += `${key}: $${formatNumber(value)}<br>`;
       }
 
       return {
-        requirements: results.join("<br>"),
+        rawMaterials: rawMaterialsOutput,
+        productionChain: productionChain.join("<br>"),
         costs: costBreakdown,
         totalCost: grandTotal
       };
@@ -136,9 +150,14 @@
       const item = document.getElementById("item").value;
       const quantity = parseInt(document.getElementById("quantity").value);
 
-      const { requirements, costs, totalCost } = calculateCrafting(item, quantity);
+      const { rawMaterials, productionChain, costs, totalCost } = calculateCrafting(item, quantity);
 
-      document.getElementById("results").innerHTML = `<strong>Requirements:</strong><br>${requirements}<br><br><strong>Costs:</strong><br>${costs}<br><br><strong>Total Cost:</strong> $${totalCost}`;
+      document.getElementById("results").innerHTML = `
+        ${rawMaterials}<br><br>
+        <strong>Production Chain:</strong><br>${productionChain}<br><br>
+        ${costs}<br><br>
+        <strong>Total Cost:</strong> $${totalCost.toLocaleString()}
+      `;
     });
   </script>
 </body>
