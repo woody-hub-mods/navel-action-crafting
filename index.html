@@ -4,6 +4,51 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crafting Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f9;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      background-color: #5e81ac;
+      color: #fff;
+      padding: 20px;
+      margin: 0;
+      text-align: center;
+      width: 100%;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    label, input, select, button {
+      display: block;
+      margin: 15px auto;
+      width: 300px;
+    }
+    button {
+      background-color: #5e81ac;
+      color: #fff;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #4c6981;
+    }
+    #results {
+      margin-top: 20px;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+      width: 80%;
+    }
+  </style>
 </head>
 <body>
   <h1>Crafting Calculator</h1>
@@ -25,7 +70,6 @@
   <div id="results"></div>
 
   <script>
-    // JSON object containing raw materials and sub-components
     const craftingData = {
       rawMaterials: {
         ironOre: { price: 5 },
@@ -47,10 +91,10 @@
       }
     };
 
-    // Function to calculate crafting requirements and costs
     function calculateCrafting(item, quantity) {
       const results = [];
       const totalCost = { rawMaterials: {} };
+      let grandTotal = 0;
 
       function calculateComponent(component, qtyNeeded) {
         const data = craftingData.subComponents[component];
@@ -61,11 +105,10 @@
           const requiredQty = value * batchesNeeded;
 
           if (craftingData.rawMaterials[key]) {
-            // Raw material processing
             if (!totalCost.rawMaterials[key]) totalCost.rawMaterials[key] = 0;
             totalCost.rawMaterials[key] += requiredQty * craftingData.rawMaterials[key].price;
+            grandTotal += requiredQty * craftingData.rawMaterials[key].price;
           } else {
-            // Sub-component processing
             calculateComponent(key, requiredQty);
           }
 
@@ -80,17 +123,20 @@
         costBreakdown += `${key}: $${value}<br>`;
       }
 
-      return { requirements: results.join("<br>"), costs: costBreakdown };
+      return {
+        requirements: results.join("<br>"),
+        costs: costBreakdown,
+        totalCost: grandTotal
+      };
     }
 
-    // Event listener for button click
     document.getElementById("calculateButton").addEventListener("click", () => {
       const item = document.getElementById("item").value;
       const quantity = parseInt(document.getElementById("quantity").value);
 
-      const { requirements, costs } = calculateCrafting(item, quantity);
+      const { requirements, costs, totalCost } = calculateCrafting(item, quantity);
 
-      document.getElementById("results").innerHTML = `<strong>Requirements:</strong><br>${requirements}<br><br><strong>Costs:</strong><br>${costs}`;
+      document.getElementById("results").innerHTML = `<strong>Requirements:</strong><br>${requirements}<br><br><strong>Costs:</strong><br>${costs}<br><br><strong>Total Cost:</strong> $${totalCost}`;
     });
   </script>
 </body>
