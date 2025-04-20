@@ -23,3 +23,5 @@ pnpm-debug.log*
 
 scripts_local/
 jsons/
+
+.vite/
