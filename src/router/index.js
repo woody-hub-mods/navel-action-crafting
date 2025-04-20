@@ -5,7 +5,7 @@
  */
 
 // Composables
-import { createRouter, createWebHistory } from 'vue-router/auto';
+import { createRouter, createWebHashHistory } from 'vue-router/auto'; // Switched to createWebHashHistory
 import { routes } from 'vue-router/auto-routes';
 
 // Add a custom route for the root path
@@ -23,7 +23,7 @@ routes.push({
 });
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL), // Use hash mode for GitHub Pages compatibility
   routes,
 });
 

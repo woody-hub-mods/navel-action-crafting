@@ -33,6 +33,26 @@ export default defineConfig({
         }],
       },
     }),
+    {
+      name: 'inject-google-analytics',
+      transformIndexHtml(html) {
+        return html.replace(
+          '</head>',
+          `
+          <script async src="https://www.googletagmanager.com/gtag/js?id=G-F8LEVPS9EB"></script>
+          <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+              dataLayer.push(arguments);
+            }
+            gtag('js', new Date());
+            gtag('config', 'G-F8LEVPS9EB');
+          </script>
+          </head>
+          `
+        );
+      },
+    },
   ],
   optimizeDeps: {
     exclude: [

@@ -13,5 +13,6 @@ declare module 'vue' {
     Crafting: typeof import('./src/components/Crafting.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ShoutOut: typeof import('./src/components/ShoutOut.vue')['default']
   }
 }

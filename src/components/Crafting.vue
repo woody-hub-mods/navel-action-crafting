@@ -219,6 +219,11 @@
             </v-col>
         </v-row>
     </v-container>
+
+
+    <!-- Shout-Out Section -->
+    <ShoutOut />
+
 </template>
 
 <script>
@@ -281,6 +286,17 @@ export default {
             if (newValue > 0 && this.selectedComponent) {
                 this.debounceTimer = setTimeout(() => {
                     this.create();
+
+                // Google Analytics event for quantity change
+                if (window.gtag) {
+                    gtag('event', 'quantity_change', {
+                        event_category: 'Crafting',
+                        event_label: 'Quantity Changed',
+                        value: newValue,
+                        component: this.selectedComponent,
+                    });
+                }
+
                 }, 200);
             } else {
                 // If the quantity is invalid or no component is selected, clear the results
@@ -301,6 +317,17 @@ export default {
                 this.debounceTimer = setTimeout(() => {
                     this.create();
                 }, 200);
+
+                // Google Analytics event for component change
+                if (window.gtag) {
+                    gtag('event', 'component_change', {
+                        event_category: 'Crafting',
+                        event_label: 'Component Changed',
+                        value: newValue,
+                        quantity: this.quantity,
+                    });
+                }
+
             }
         },
     },
