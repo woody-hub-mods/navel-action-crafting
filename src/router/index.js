@@ -17,7 +17,7 @@ routes.push({
 
 // Add a custom route for Crafting with dynamic path parameters
 routes.push({
-  path: '/craft/:selectedComponent?/:quantity?',
+  path: '/craft/:selectedComponent?/:quantity?/:selectedTrim?/:selectedFrame?',
   name: 'Crafting',
   component: () => import('../components/Crafting.vue'), // Lazy load the Crafting component
 });

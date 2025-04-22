@@ -8,8 +8,33 @@
                         <v-form>
                             <!-- Searchable and filterable dropdown -->
                             <v-select v-model="selectedComponent" autocomplete dense hide-details item-title="name"
-                                item-value="id" :items="filteredNonResources" label="Select Component" outlined />
+                                item-value="id" :items="filteredNonResources" label="Select Component or Ship" outlined />
                             <v-text-field v-model="quantity" label="Enter Quantity" outlined type="number" />
+                            <!-- Conditional dropdowns for Ship -->
+                            <v-select
+                                v-if="isSelectedShip"
+                                v-model="selectedFrame"
+                                autocomplete
+                                dense
+                                hide-details
+                                item-title="name"
+                                item-value="id"
+                                :items="formattedWoodFrame"
+                                label="Select Frame"
+                                outlined
+                            />
+                            <v-select
+                                v-if="isSelectedShip"
+                                v-model="selectedTrim"
+                                autocomplete
+                                dense
+                                hide-details
+                                item-title="name"
+                                item-value="id"
+                                :items="formattedWoodTrim"
+                                label="Select Planking"
+                                outlined
+                            />
                         </v-form>
                     </v-card-text>
                 </v-card>
@@ -161,6 +186,10 @@
                                 <v-list-item-title><strong>Required Crafting Level:</strong> {{
                                     lastProductionStep.requiredLevel }}</v-list-item-title>
                             </v-list-item>
+                            <v-list-item v-if="lastProductionStep.isShip">
+                                <v-list-item-title><strong>shipyard Level:</strong> {{
+                                    lastProductionStep.shipyardLevel }}</v-list-item-title>
+                            </v-list-item>
                             <v-list-item>
                                 <v-list-item-title><strong>Crafting XP:</strong> {{ results.qtyAdjustedActualRecipe.xp
                                     }}</v-list-item-title>
@@ -170,6 +199,12 @@
                         <!-- Recipe Details -->
                         <v-divider class="my-4" />
                         <h4 class="text-h6">Recipe Details</h4>
+
+                        <!-- Disclaimer for Frame and Planking Wood -->
+                        <v-alert type="info" dense class="mb-4">
+                            Frame and Planking wood selection requirements are not included in this section yet but is included in the Resources Needed section. Will fix this on future patch.
+                        </v-alert>
+
                         <v-list dense>
                             <v-list-item
                                 v-for="(requirement, index) in results.qtyAdjustedActualRecipe.itemRequirements"
@@ -232,7 +267,10 @@ export default {
         return {
             recipes: [], // Holds the fetched recipes
             items: [], // Holds the fetched items
+            woods: [], // Holds the fetched woods
             selectedComponent: null, // Selected component from the dropdown
+            selectedFrame: null, // Selected frame for ship crafting
+            selectedTrim: null, // Selected planking for ship crafting
             quantity: null, // Quantity to craft
             loading: true, // Loading state
             results: {
@@ -260,9 +298,56 @@ export default {
                 .map(recipe => ({
                     name: recipe.result.name.replace(' Blueprint', ''), // Remove "Blueprint" from the name
                     id: recipe.result.id,
+                    isShip: !!recipe.isShip, // Check if it's a ship
                 }));
 
             return blueprints;
+        },
+        filterWoodTrim() {
+            return this.woods.trim;
+        },
+        formattedWoodTrim() {
+            return this.filterWoodTrim
+                .map(item => {
+                    const modifiers = item.properties
+                        .map(prop => `${prop.modifier} ${prop.amount}${prop.isPercentage ? "%" : ""}`)
+                        .join(", ");
+                    return {
+                        id: item.id,
+                        name: `${item.name} - ${item.family} (${modifiers})`,
+                        family: item.family // Keep track of the family for sorting
+                    };
+                })
+                .sort((a, b) => {
+                    // First, prioritize "regular" over "rare"
+                    if (a.family === "regular" && b.family !== "regular") return -1;
+                    if (b.family === "regular" && a.family !== "regular") return 1;
+                    // Then, sort alphabetically by name
+                    return a.name.localeCompare(b.name);
+                });
+        },
+        filterWoodFrame() {
+            return this.woods.frame;
+        },
+        formattedWoodFrame() {
+            return this.filterWoodFrame
+                .map(item => {
+                    const modifiers = item.properties
+                        .map(prop => `${prop.modifier} ${prop.amount}${prop.isPercentage ? "%" : ""}`)
+                        .join(", ");
+                    return {
+                        id: item.id,
+                        name: `${item.name} - ${item.family} (${modifiers})`,
+                        family: item.family // Keep track of the family for sorting
+                    };
+                })
+                .sort((a, b) => (a.family === "regular" ? -1 : 1)); // Ensure "regular" comes first
+        },
+        getSelectedWoodFrame() {
+            return this.filterWoodFrame.find(item => item.id === this.selectedFrame);
+        },
+        getSelectedWoodTrim() {
+            return this.filterWoodTrim.find(item => item.id === this.selectedTrim);
         },
         lastProductionStep() {
             if (this.results.craftingOrder.length > 0) {
@@ -276,84 +361,150 @@ export default {
             }
             return [];
         },
+        isSelectedShip() {
+            const selected = this.filteredNonResources.find(item => item.id === this.selectedComponent);
+            return selected?.isShip || false;
+        }
     },
     watch: {
         quantity(newValue) {
-            // Clear the previous debounce timer
-            clearTimeout(this.debounceTimer);
-
-            // If the quantity is valid and a component is selected, debounce the create method
             if (newValue > 0 && this.selectedComponent) {
-                this.debounceTimer = setTimeout(() => {
+                const selectedItem = this.filteredNonResources.find(item => item.id === this.selectedComponent);
+                if (selectedItem?.isShip) {
+                    if (this.selectedFrame && this.selectedTrim) {
+                        this.create();
+                    } else {
+                        this.clearResults();
+                    }
+                } else {
                     this.create();
-
-                // Google Analytics event for quantity change
-                if (window.gtag) {
-                    gtag('event', 'quantity_change', {
-                        event_category: 'Crafting',
-                        event_label: 'Quantity Changed',
-                        value: newValue,
-                        component: this.selectedComponent,
-                    });
                 }
-
-                }, 200);
             } else {
-                // If the quantity is invalid or no component is selected, clear the results
-                this.results.resources = null;
-                this.results.qtyAdjustedActualRecipe = null;
-                this.results.craftingOrder = [];
+                this.clearResults();
             }
         },
+
         selectedComponent(newValue) {
-            // Clear the results if no component is selected
-            if (!newValue || this.quantity <= 0) {
-                this.results.resources = null;
-                this.results.qtyAdjustedActualRecipe = null;
-                this.results.craftingOrder = [];
-            } else {
-                // Trigger create if both selectedComponent and quantity are valid
-                clearTimeout(this.debounceTimer);
-                this.debounceTimer = setTimeout(() => {
-                    this.create();
-                }, 200);
+            if (!newValue) {
+                this.clearResults();
+                return;
+            }
 
-                // Google Analytics event for component change
-                if (window.gtag) {
-                    gtag('event', 'component_change', {
-                        event_category: 'Crafting',
-                        event_label: 'Component Changed',
-                        value: newValue,
-                        quantity: this.quantity,
-                    });
+            const selectedItem = this.filteredNonResources.find(item => item.id === newValue);
+
+            if (selectedItem?.isShip) {
+                this.quantity = 1;
+                this.clearResults(); 
+                if (this.isSelectedShip && this.selectedFrame && this.selectedTrim && this.quantity > 0) {
+                    this.create(); // Call create if all conditions are met
                 }
-
+            } else {
+                this.selectedFrame = null;
+                this.selectedTrim = null;
+                const recipe = this.recipes.flatMap(group => group.recipes).find(r => r.result.id === newValue);
+                this.quantity = recipe?.result?.amount || 1;
+                this.create();
             }
         },
+
+        selectedFrame(newValue) {
+            if (this.isSelectedShip && newValue && this.selectedTrim && this.quantity > 0) {
+                this.create();
+            } else {
+                this.clearResults();
+            }
+        },
+
+        selectedTrim(newValue) {
+            if (this.isSelectedShip && newValue && this.selectedFrame && this.quantity > 0) {
+                this.create();
+            } else {
+                this.clearResults();
+            }
+        }
     },
     async mounted() {
         try {
-            await Promise.all([this.fetchRecipes(), this.fetchItems()]);
+            await Promise.all([
+                this.fetchRecipes(),
+                this.fetchItems(),
+                this.fetchShipBlueprints(),
+                this.fetchIngredients(),
+                this.fetchWoods()
+            ]);
+
+            // Map ingredient names for quick lookup
+            const ingredientNames = new Set(
+                this.ingredients
+                    .filter(ing => ing.name !== "Doubloons") // Exclude "Doubloons" from the set
+                    .map(ing => ing.name)
+            );
+
+            // Transform ship blueprints into recipe format with adjusted IDs
+            const shipBlueprintRecipes = {
+                group: "Ship Construction",
+                recipes: this.shipsBlueprints
+                .filter(ship => !ship.ship.name.endsWith("(i)"))
+                .map(ship => ({
+                    id: ship.id + 10000, // Add 10000 to ship ID to avoid conflicts
+                    isShip: true,
+                    name: `${ship.name} Blueprint`,
+                    goldPrice: ship.price, 
+                    wood: ship.wood,
+                    itemRequirements: [
+                        ...ship.resources.map(resource => ({
+                            id: resource.id || null, // Some resource names may not have IDs
+                            name: resource.name,
+                            amount: resource.amount,
+                            isResource: !ingredientNames.has(resource.name) // Check if it's in ingredients
+                        })),
+                        {
+                            id: null, // No specific ID for provisions
+                            name: "Provisions",
+                            amount: ship.provisions,
+                            isResource: true
+                        }
+                    ],
+                    result: {
+                        id: ship.ship.id + 10000, // Adjust ship result ID to avoid conflicts
+                        name: ship.ship.name,
+                        amount: 1,
+                        craftingCost: 0, // You may need a formula for this
+                        reduction: 0 // Adjust accordingly
+                    },
+                    requiredLevel: ship.craftLevel,
+                    xp: ship.craftXP,
+                    shipyardLevel: ship.shipyardLevel,
+                    serverType: -1
+                }))
+            };
+
+            // Add transformed ship blueprints to recipes
+            this.recipes.push(shipBlueprintRecipes);
 
             // Prepopulate values from path parameters
-            const { selectedComponent, quantity } = this.$route.params;
+            const { selectedComponent, quantity, selectedTrim, selectedFrame } = this.$route.params;
 
-            // Set selectedComponent if present in path
             if (selectedComponent) {
                 this.selectedComponent = parseInt(selectedComponent, 10);
             }
 
-            // Default quantity to 1 if not provided or invalid
+            if (selectedTrim) {
+                this.selectedTrim = parseInt(selectedTrim, 10);
+            }
+            if (selectedFrame) {
+                this.selectedFrame = parseInt(selectedFrame, 10);
+            }
+
             this.quantity = quantity && parseInt(quantity, 10) > 0 ? parseInt(quantity, 10) : 1;
 
-            // Trigger the create function if a component is selected
             if (this.selectedComponent) {
                 this.create();
             }
         } catch (error) {
-            console.error('Error during data fetching:', error);
+            console.error("Error during data fetching:", error);
         } finally {
-            this.loading = false; // Set loading to false after data is fetched
+            this.loading = false;
         }
     },
     methods: {
@@ -375,6 +526,38 @@ export default {
                 console.error('Error fetching recipes:', error);
             }
         },
+        async fetchShipBlueprints() {
+            try {
+                const response = await fetch('https://na-map-data-two.netlify.app//ship-blueprints.json');
+                const data = await response.json();
+                this.shipsBlueprints = data;
+            } catch (error) {
+                console.error('Error fetching ship blueprints:', error);
+            }
+        },
+        async fetchIngredients() {
+            try {
+                const response = await fetch('https://na-map-data-two.netlify.app//ingredients.json');
+                const data = await response.json();
+                this.ingredients = data;
+            } catch (error) {
+                console.error('Error fetching ingredients:', error);
+            }
+        },
+        async fetchWoods() {
+            try {
+                const response = await fetch('https://na-map-data-two.netlify.app//woods.json');
+                const data = await response.json();
+                this.woods = data;
+            } catch (error) {
+                console.error('Error fetching ingredients:', error);
+            }
+        },
+        clearResults() {
+            this.results.resources = null;
+            this.results.qtyAdjustedActualRecipe = null;
+            this.results.craftingOrder = [];
+        },
         create() {
             if (this.selectedComponent && this.quantity > 0) {
                 // Update the URL with path parameters
@@ -383,6 +566,8 @@ export default {
                     params: {
                         selectedComponent: this.selectedComponent,
                         quantity: this.quantity,
+                        selectedTrim: this.selectedTrim,
+                        selectedFrame: this.selectedFrame
                     },
                 });
 
@@ -393,7 +578,9 @@ export default {
                     const result = this.calculateResourcesAndOrder(
                         this.recipes,
                         `${selectedBlueprint.name} Blueprint`,
-                        this.quantity
+                        this.quantity,
+                        this.getSelectedWoodFrame,
+                        this.getSelectedWoodTrim
                     );
                     this.results.resources = result.resources;
                     this.results.craftingOrder = result.craftingOrder;
@@ -401,6 +588,19 @@ export default {
                 } else {
                     console.error('Selected component not found.');
                 }
+
+                // Google Analytics event for component change
+                if (window.gtag) {
+                    gtag('event', 'component_change', {
+                        event_category: 'Crafting',
+                        event_label: 'Component Changed',
+                        value: this.selectedComponent,
+                        woodTrim: this.selectedTrim,
+                        woodFrame: this.selectedFrame,
+                        quantity: this.quantity,
+                    });
+                }
+
             } else {
                 console.error('Please select a component and enter a valid quantity.');
             }
@@ -429,7 +629,7 @@ export default {
             // Round up to the nearest whole number
             return Math.ceil(total);
         },
-        calculateResourcesAndOrder(recipesJson, blueprintName, quantity) {
+        calculateResourcesAndOrder(recipesJson, blueprintName, quantity, frame, trim) {
             const recipeMap = new Map();
 
             // Flatten the recipes into a map for quick lookup
@@ -451,9 +651,56 @@ export default {
                     throw new Error(`Blueprint "${blueprintName}" not found.`);
                 }
 
+                // Define mapping for wood names between woods and items
+                const woodNameMap = {
+                    "Oak": "Oak Log",
+                    "Fir": "Fir Log",
+                    "Teak": "Teak Log",
+                    "White Oak": "White Oak Log",
+                    "Mahogany": "Mahogany Log",
+                    "Live Oak": "Live Oak Log",
+                    // Add more mappings as needed
+                };
+
+
                 // Calculate the number of batches required
                 const batchSize = recipe.result.amount;
                 const batches = Math.ceil(quantityNeeded / batchSize);
+
+                // Get wood amounts
+                if (recipe.isShip && recipe.wood) {
+                    console.log("Ship recipe found:", recipe);
+                    const woodFrame = recipe.wood.find(wood => wood.name === "Frame");
+                    const woodTrim = recipe.wood.find(wood => wood.name === "Trim");
+                    
+                    // Get the base amount of fir needed, each ship requires it and amount is used for trims
+                    const baseFirAmount = recipe.itemRequirements.find(item => item.name === "Fir")?.amount || 0;
+
+                    // Add Trim resource and amount to the result
+                    if (trim.name === "Crew Space") {
+                        // Add Hemp using the fir amount
+                        const hempAmount = Math.ceil(baseFirAmount * batches);
+                        if (!result.resources["Hemp"]) {
+                            result.resources["Hemp"] = 0;
+                        }
+                        result.resources["Hemp"] += hempAmount;
+                    } else {
+                        // Add selected wood
+                        const name = woodNameMap[trim.name] || trim.name;
+                        if(!result.resources[name]) {
+                            result.resources[name] = 0;
+                        }
+                        result.resources[name] += Math.ceil(baseFirAmount * batches);
+                    }
+
+                    // Add Frame resource and amount to the result
+                    const name = woodNameMap[frame.name] || frame.name;
+                    if (!result.resources[name]) {
+                        result.resources[name] = 0;
+                    }
+                    result.resources[name] += Math.ceil(woodFrame.amount * batches);
+
+                }
 
                 // Process item requirements
                 recipe.itemRequirements.forEach(requirement => {
@@ -461,10 +708,11 @@ export default {
 
                     if (requirement.isResource) {
                         // If it's a resource, add it to the resources list
-                        if (!result.resources[requirement.name]) {
-                            result.resources[requirement.name] = 0;
+                        const name = woodNameMap[requirement.name] || requirement.name;
+                        if (!result.resources[name]) {
+                            result.resources[name] = 0;
                         }
-                        result.resources[requirement.name] += totalAmountNeeded;
+                        result.resources[name] += totalAmountNeeded;
                     } else {
                         // If it's not a resource, recursively calculate its requirements
                         const subBlueprintName = `${requirement.name} Blueprint`;
